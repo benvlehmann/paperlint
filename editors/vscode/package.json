@@ -1,0 +1,68 @@
+{
+  "name": "paperlint",
+  "displayName": "paperlint",
+  "description": "Lint LaTeX papers against a house style",
+  "version": "0.1.0",
+  "publisher": "benvlehmann",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:latex",
+    "onLanguage:tex"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "paperlint.lint",
+        "title": "paperlint: Lint Current File"
+      }
+    ],
+    "configuration": {
+      "title": "paperlint",
+      "properties": {
+        "paperlint.path": {
+          "type": "string",
+          "default": "paperlint",
+          "description": "Executable used to run paperlint. Use an absolute path if it is not on PATH."
+        },
+        "paperlint.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Arguments placed before the TeX file. Example: [\"-m\", \"paperlint\"] with paperlint.path set to python3."
+        },
+        "paperlint.root": {
+          "type": "string",
+          "default": "",
+          "description": "Root .tex file to lint. A relative path is resolved from the workspace folder. Empty uses a % !TEX root comment, then the active file."
+        },
+        "paperlint.run": {
+          "type": "string",
+          "enum": [
+            "onSave",
+            "onType"
+          ],
+          "default": "onSave",
+          "description": "When to lint. onType also lints on save."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.7.2"
+  }
+}

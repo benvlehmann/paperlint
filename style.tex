@@ -1,0 +1,223 @@
+\documentclass[
+    prd, superscriptaddress, nofootinbib, amsmath, amssymb,
+    aps, floatfix, preprintnumbers
+]{revtex4-2}
+
+\usepackage[utf8]{inputenc}
+\usepackage{setspace}
+\usepackage[dvips]{graphicx}
+\usepackage[dvipsnames]{xcolor}
+\definecolor{CiteBlue}{RGB}{45,52,151}
+\usepackage[
+    colorlinks=true,
+    linkcolor=CiteBlue,
+    urlcolor=CiteBlue,
+    citecolor=CiteBlue
+]{hyperref}
+
+\usepackage[capitalise]{cleveref}
+\usepackage{siunitx}
+
+\usepackage{booktabs}
+
+\newcommand{\refcite}[1]{Ref.~\cite{#1}}
+\newcommand{\refscite}[1]{Refs.~\cite{#1}}
+
+\usepackage{bm}
+\newcommand{\bb}[1]{\bm{\mathrm{#1}}}
+\newcommand{\du}{\mathrm{d}}
+\newcommand{\dd}{\,\du}
+
+\usepackage{verbatim}
+
+\begin{document}
+\title{Paper preparation pet peeves}
+ 
+\author{Benjamin V. Lehmann}
+\email{benvlehmann@gmail.com}
+\affiliation{Center for Theoretical Physics---a Leinweber Institute, Massachusetts Institute of Technology, Cambridge, MA 02139, USA}
+
+\date\today
+
+
+\begin{abstract}\ignorespaces{}
+\end{abstract}
+
+\maketitle
+
+\section{Labels and references}
+\label{sec:labels-and-references}
+\begin{figure}\centering
+    \caption{This is a figure caption. \textbf{Do not} use \texttt{[h]}, \texttt{[t]}, or any other modifiers.}
+    \label{fig:my-figure}
+\end{figure}
+\begin{enumerate}
+    \item \textbf{Do} begin labels with \texttt{sec:}, \texttt{eq:}, \texttt{fig:}, \texttt{tab:}, etc., as appropriate. \textbf{Never} put spaces in labels.
+    \item \textbf{Do not} use \verb|\ref| or \verb|\eqref|. Use \verb|\cref|. 
+        \begin{itemize}
+            \item Example: \cref{fig:my-figure}.
+            \item At the beginning of a sentence, use \verb|\Cref|, which produces e.g.\ ``\Cref{fig:my-figure}.''
+        \end{itemize}
+    \item \textbf{Do not} use separate \verb|\cref| statements to reference multiple equations at once, e.g., ``\cref{eq:multi-line-equation} and \cref{eq:piecewise-expression}.'' Instead, use a single statement, as in ``\cref{eq:multi-line-equation,eq:piecewise-expression}.''
+    \item \textbf{If and only if} a citation is part of a sentence, describe it as ``\refcite{Essig:2011nj},'' not ``\cite{Essig:2011nj}.'' Pluralize as ``\refscite{Essig:2011nj,Chandrasekhar:1942}.''
+\end{enumerate}
+
+\section{Units}
+\begin{enumerate}
+    \item \textbf{Do not} use \verb|\mathrm| for units. Use \verb|\qty| from the \texttt{siunitx} package. Examples: \qty{10}{\mega\electronvolt/\centi\meter^2}, \qty{2.2e3}{M_\odot}.
+    \item To use the same syntax for dimensionless numbers, use \verb|\num|: \num{4e7}, \num{e3}, \num{427767865863}.
+\end{enumerate}
+
+\section{Equations}
+\begin{enumerate}
+    \item \textbf{Do not} use \verb|$$...$$| or \verb|\[...\]| for display equations. Use the \texttt{equation} environment.
+    \item \textbf{Do not} use \texttt{align} for single equations that need to be split over multiple lines. Use \texttt{multline}. Example:
+    \begin{multline}
+        \label{eq:multi-line-equation}
+        v_p^{{\mathrm{ex}}}(\theta,\phi) = \sqrt{
+            \frac1{\epsilon_\parallel} +
+            \frac12\left(
+                \frac{1}{\epsilon_\perp} - \frac{1}{\epsilon_\parallel}
+            \right)\Bigl[
+            (\cos\phi\sin\theta)\sqrt{u_-} - (\cos\theta) \sqrt{u_+}
+        \Bigr]^2}
+        \\
+        \pm \frac{
+            \epsilon_\perp - \epsilon_\parallel
+            + \epsilon_\perp \epsilon_\parallel v^2\cos2\psi
+        }{
+            \epsilon_\perp \epsilon_\parallel v^2\sqrt{
+                \left[
+                    \frac{1}{v^2}\left(
+                            1/\epsilon_\parallel
+                            - 1/\epsilon_\perp
+                    \right) + \cos2\psi
+                \right]^2 + \sin^2 2\psi
+            }
+        }
+        .
+    \end{multline}
+    \item \textbf{Do not} use \texttt{eqnarray} or \texttt{array} for piecewise expressions. Use \texttt{cases} instead. Example:
+    \begin{equation}
+        \label{eq:piecewise-expression}
+        P_{\mathrm{obs}}(\lambda) \approx \begin{cases}
+            \displaystyle
+            \lambda e^{-\lambda} P\bigl(\left|\delta E\right| > E_{\min}\bigr)
+            & \lambda \ll 1, \\[3mm]\displaystyle
+            \operatorname{erfc}\left(
+                \frac{E_{\min}}{\sigma_E\sqrt{2\lambda}}\right)
+            & \lambda \gg 1.
+        \end{cases}
+    \end{equation}
+    \item \textbf{Do} use newlines to organize the code for long equations, as in the above examples. \textbf{Do not} exceed 80 characters per line in the code within the \texttt{equation} environment.
+\end{enumerate}
+
+\section{Tables and arrays}
+\begin{table}
+    \centering
+    \begin{equation*}
+        \begin{array}{lccc}
+            \toprule
+                & \textnormal{\textbf{Parameter}}
+                    & \textnormal{\textbf{Loose}}
+                    & \textnormal{\textbf{Tight}}
+            \\\midrule
+                \textnormal{\textbf{Cuts}}
+                    & \tau_+~[\qty{}{\micro\second}]
+                        & (0.3, 0.4) & (0.325, 0.375) \\
+                    & \tau_-~[\qty{}{\micro\second}]
+                        & (1.6, 2.0) & (1.75, 1.85) \\
+                    & \chi^2_\text{red}
+                        & (0.9, 1.1)& (0.95, 1.05) \\
+                    & t_0~[\qty{}{\micro\second}]
+                        & (-0.5, 0.5) & (-0.5, 0.5)
+            \\\midrule
+                \textnormal{\textbf{Results}}
+                    & \textnormal{Event rate}~[\qty{}{\hertz}]
+                        & \num{7.2e-5} & \num{7.4e-6} \\
+                    & \textnormal{Survival}~[\qty{}{\percent}]
+                        & 0.107 & 0.011 \\
+            \bottomrule
+        \end{array}
+    \end{equation*}
+    \caption{This is a table consisting mainly of mathematical expressions.}
+    \label{tab:math}
+\end{table}
+\begin{table}
+    \centering
+    \setlength{\tabcolsep}{6pt}
+    \begin{tabular}{lcccccccl}
+        \toprule
+        System
+            & $m_1$ [\qty{}{M_\odot}]
+            & $m_2$ [\qty{}{M_\odot}]
+            & $a_{\mathrm{proj}}$ [\qty{}{AU}]
+            & $e$
+            & $\theta_i$ [\qty{}{\degree}]
+            & $\dot P_{12}$
+            & $\Delta P_{12}/m_3$ [\qty{}{yr/M_\odot}]
+            & Ref. \\
+        \midrule
+        J1713-0747
+            & 1.33 & 0.29 & 0.0648 & \num{7.49e-5}
+            & 71.69 & \num{3.4e-13} & 0.24014
+            & \cite{Zhu:2018etc} \\
+        J1740-3052
+            & 1.4 & 19.5 & 1.52 & 0.5789
+            & 53 & \num{3e-9} & 0.0804596
+            & \cite{Madsen:2012rs} \\
+        J1903+0327
+            & 1.667 & 1.029 & 0.211 & 0.4367
+            & 77.47 & \num{-3.3e-11} & 0.229562
+            & \cite{Freire:2010tf} \\
+        J2016+1948
+            & ${\sim} 1$ & 0.29 & 0.302 & \num{1.48e-3}
+            & 58.58 & -- & 1.41564
+            & \cite{Gonzalez:2011kt} \\
+        B1259-63
+            & ${\sim} 2$ & 19.8 & \num{2.60} & 0.8698
+            & $154 \pm 3$  & \num{1.4e-8} &  0.304914
+            & \cite{Miller-Jones:2018waj, Shannon:2013dpa} \\
+        \bottomrule
+    \end{tabular}
+    \caption{This is a table containing significant nonmathematical content.}
+    \label{tab:nonmath}
+\end{table}
+
+\begin{enumerate}
+    \item When a table consists largely of numerical or mathematical expressions, use the \verb|array| environment within an appropriate math environment. See e.g.\ \cref{tab:math}.
+    \item When a table has significant nonmathematical content that would be inappropriate for a mathmode environment, use \verb|tabular|, as in \cref{tab:nonmath}.
+    \item Avoid vertical rules in tables. For horizontal rules, use \verb|\toprule|, \verb|\midrule|, and \verb|\bottomrule| from the \texttt{booktabs} package, as in \cref{tab:math,tab:nonmath}.
+\end{enumerate}
+
+\section{Text}
+\begin{enumerate}
+    \item \textbf{Do not} use \verb|{\bf x}|, \verb|{\it x}|, \verb|{\rm x}|, or \verb|{\color{x} y}|. Instead, use \verb|\textbf{x}|, \verb|\textit{x}|, \verb|\mathrm{x}|, and \verb|\textcolor{x}{y}|.
+    \item \textbf{Do not} use \verb|\mathrm| for text with spaces or dashes in math mode. Instead, use \verb|\textnormal|: $x\textnormal{--}y_{\textnormal{(a b)}}$.
+    \item \textbf{Do not} use \verb|%| over more than a few lines. Use the \texttt{comment} environment provided by the \texttt{verbatim} package.
+\end{enumerate}
+
+\section{Dashes}
+\begin{enumerate}
+    \item Use \verb|-| (hyphen) for hyphenation, as in the word ``non-negotiable.'' Do not surround it with spaces.
+    \item Use \verb|--| (en dash) to indicate ranges, as in ``1--10.'' Do not surround it with spaces.\footnote{My affiliation breaks this rule, which breaks my heart.}
+    \item Use \verb|---| (em dash) as a punctuation mark---like this. Do not surround it with spaces.
+\end{enumerate}
+
+\section{Spacing}
+\begin{enumerate}
+    \item \textbf{Do not} use an ordinary space where a line break would be problematic (e.g., between a phrase and an associated \verb|\cite| invocation). Instead, use \verb|~|.
+    \item \textbf{Do not} use \verb|~| in math mode. Instead, use \verb|\,|, \verb|\;|, \verb|\quad|, \verb|\qquad|, or \verb|\hspace|, as appropriate.
+    \item When a period is \textbf{not} used to end a sentence, and immediately precedes a space, either use an explicit interword space, ``\verb|\ |'', or write ``\verb|\@.|'' instead of ``\verb|.|''. See e.g.\ the usage of ``e.g.'' throughout this document. The same applies for semicolons that precede a space but do not end a clause.
+\end{enumerate}
+
+\section{Miscellaneous}
+\begin{enumerate}
+\item \textbf{Do not} use custom macros to begin and end environments, particularly equation environments like \texttt{equation} and \texttt{align}. This makes debugging more complicated, and also interferes with syntax highlighting and linting. If a line begins an environment of any kind, it should say \verb|\begin|. If you need more functionality than the environment provides, define a new environment.
+\item \textbf{Do not} start an environment in the middle of a line if avoidable. Always allow \verb|\begin{...}| and \verb|\end{...}| to sit on their own lines. \text{Do not} add blank lines before or after the environment unless you mean to make a paragraph break.
+\item \textbf{Do not} use binary operator spacing for \verb|\sim| when using it as a unary operator. Instead, use \verb|\mathop{\sim}| or simply \verb|{\sim}|. For example, notice the difference between $\sim\qty{e3}{\centi\meter}$, $\mathop{\sim}\qty{e3}{\centi\meter}$, and ${\sim}\qty{e3}{\centi\meter}$, which are especially pronounced when a line has extra space before a newline.
+\end{enumerate}
+
+\bibliography{style}
+
+\end{document}

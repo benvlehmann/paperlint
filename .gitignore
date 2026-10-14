@@ -1,0 +1,11 @@
+.venv/
+build/
+dist/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+*.pyc
+.DS_Store
+*.vsix
+editors/vscode/node_modules/
+editors/vscode/out/
