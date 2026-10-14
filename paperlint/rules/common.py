@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from paperlint.document import Document, Token
-
-ENV_MACRO_RE = re.compile(r"\\(?:begin|end)(?![A-Za-z])")
 
 
 def commands(document: Document, names: set[str] | None = None) -> list[Token]:
@@ -98,14 +95,18 @@ def line_is_only_env_command(line: str) -> bool:
                     return False
                 extras += 1
                 continue
-            return False
-        return stripped[index:].strip() == ""
+            return _only_ignorespaces(stripped[index:])
+        return _only_ignorespaces(stripped[index:])
     if stripped.startswith("\\end{"):
         index = skip_balanced(stripped, 4, "{", "}")
         if index < 0:
             return False
         return stripped[index:].strip() == ""
     return False
+
+
+def _only_ignorespaces(rest: str) -> bool:
+    return rest.strip() in {"", "\\ignorespaces"}
 
 
 def env_base(name: str) -> str:

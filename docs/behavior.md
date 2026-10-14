@@ -14,7 +14,7 @@ file:line:col: severity: message [rule-id]
 
 Severity is `error` or `warning`. The process exits 1 when any error was reported, and 0 when the only findings are warnings.
 
-The checker does not expand macros and assumes standard catcodes. It ignores comments, `\verb`, `verbatim`, `Verbatim`, `lstlisting`, `minted`, the `comment` environment, and anything after `\end{document}`. `\text`, `\intertext`, `\shortintertext`, `\mbox`, and `\footnote` return to text mode for their argument.
+The checker does not expand macros and assumes standard catcodes. It ignores comments, `\verb`, `verbatim`, `Verbatim`, `lstlisting`, `minted`, the `comment` environment, the arguments of `\texttt`, `\href`, `\url`, `\documentclass`, and `\usepackage`, and anything after `\end{document}`. `\text`, `\intertext`, `\shortintertext`, `\mbox`, and `\footnote` return to text mode for their argument.
 
 Citation keys, the mandatory argument of `\cite`, `\refcite`, and `\refscite`, are not style-checked. They have to match bibliography entry names. Optional notes such as `\cite[see yr]{key}` are still checked. `cite-empty` and `cite-plural` still look at the keys.
 
@@ -23,6 +23,8 @@ A trailing comment suppresses one rule on that line. Several ids may be separate
 ```latex
 \ref{sec:old} % paperlint: disable=no-ref
 ```
+
+A line that ends with `%!style ok` is exempt from every finding on that line. Trailing spaces after the marker are ignored. An escaped `\%` does not count.
 
 `paperlint.toml` next to the root file can replace the label-prefix map, the citation trigger and exclusion lists, the abbreviation list, and the comment-line threshold.
 
@@ -35,10 +37,6 @@ Sentence start is the start of a paragraph, or a position after `.`, `!`, or `?`
 A `\label` has no whitespace, and its argument begins with `sec:`, `eq:`, `fig:`, or `tab:`.
 
 Inside `figure` or `figure*`, the prefix is `fig:`. Inside `table` or `table*`, it is `tab:`. Inside `equation`, `multline`, `align`, or `gather` (and the starred forms), it is `eq:`. Otherwise, after `\section`, `\subsection`, `\subsubsection`, `\paragraph`, or `\subparagraph`, it is `sec:`. A label with no relevant environment and no sectioning command only has to use one of the known prefixes.
-
-### `no-ref`
-
-`\ref` and `\eqref` are forbidden. Use `\cref` or `\Cref`.
 
 ### `cref-sentence-case`
 
@@ -56,10 +54,6 @@ Inside `figure` or `figure*`, the prefix is `fig:`. Inside `table` or `table*`, 
 
 `eqnarray` and `eqnarray*` are forbidden.
 
-### `figure-placement`
-
-`figure` and `figure*` take no optional argument. `\begin{figure}[ht]` is an error.
-
 ### `booktabs`
 
 A `tabular` or `array` preamble contains no `|`. `\hline`, `\cline`, and `\vline` are forbidden. Horizontal rules are `\toprule`, `\midrule`, and `\bottomrule`.
@@ -72,13 +66,57 @@ A `tabular` or `array` preamble contains no `|`. `\hline`, `\cline`, and `\vline
 
 The argument of `\mathrm` contains a space or a dash. Use `\textnormal`. `\mathrm{mol}` is legal. `\mathrm{cm}` is a unit and is reported by `unit-bare`, not by this rule.
 
-### `env-own-line`
-
-`\begin{...}` and `\end{...}`, including the environment's own arguments, are the only material on their line.
-
 ### `no-env-macro`
 
-The replacement text of `\newcommand`, `\renewcommand`, `\newenvironment`, or `\renewenvironment` (starred forms included) contains `\begin` or `\end`. The diagnostic is on the definition.
+The replacement text of `\newcommand` or `\renewcommand` (starred forms included) contains a `\begin` without its matching `\end`, or an `\end` without its matching `\begin`. A complete environment in the macro is legal. `\newenvironment` and `\renewenvironment` are legal even when `\begin` and `\end` are split across the two definitions.
+
+### `cite-empty`
+
+`\cite`, `\refcite`, or `\refscite` has no key. A missing argument, `\cite{}`, and `\cite{ }` all count. Sentence role, the parenthetical tie, and the plural check do not also fire.
+
+### `cite-plural`
+
+- `\refcite` with a comma-separated argument should be `\refscite`.
+- `\refscite` with a single key should be `\refcite`.
+- `\refcite{a} and \refcite{b}` should be `\refscite{a,b}`.
+
+### `usepackage-booktabs`
+
+`booktabs` fired, and neither `\usepackage` nor `\RequirePackage` loads `booktabs`. The message asks for `\usepackage{booktabs}`. The diagnostic is on the `\documentclass` line, column 1. If the file has no `\documentclass`, it is on line 1 of the root file.
+
+### `usepackage-siunitx`
+
+`unit-bare`, `num-power`, or `num-scientific` fired, and `siunitx` is not loaded. One error even if several of those rules fired. The message asks for `\usepackage{siunitx}`. The diagnostic is on the `\documentclass` line, column 1.
+
+Options and combined lists count: `\usepackage[range-units]{siunitx,booktabs}`.
+
+### `declare-si-unit`
+
+`yr`, `pc`, and `AU` are not built into siunitx. When one of those `unit-bare` findings is present and `siunitx` is loaded, this error sits on the line after the `\usepackage` or `\RequirePackage` that loads it. The message asks for the missing declaration:
+
+```latex
+\DeclareSIUnit{\year}{yr}
+\DeclareSIUnit{\parsec}{pc}
+\DeclareSIUnit{\au}{AU}
+```
+
+A `\DeclareSIUnit` that already names `\year`, `\parsec`, or `\au` suppresses that error. When `siunitx` itself is missing, `usepackage-siunitx` is the error instead.
+
+These three errors look through the preamble. That is the root file before `\begin{document}`, plus every file named by `\input` or `\include` in that region, and the same for files those pull in. A file with no `\begin{document}` counts in full. A `\usepackage` or `\DeclareSIUnit` after `\begin{document}` does not count.
+
+## Warnings
+
+### `no-ref`
+
+`\ref` and `\eqref` are forbidden. Use `\cref` or `\Cref`.
+
+### `figure-placement`
+
+`figure` and `figure*` take no optional argument. `\begin{figure}[ht]` is reported.
+
+### `env-own-line`
+
+`\begin{...}` and `\end{...}`, including the environment's own arguments, are the only material on their line. A `\begin` line may also end with `\ignorespaces`, a comment, or both.
 
 ### `no-tilde-math`
 
@@ -87,10 +125,6 @@ The replacement text of `\newcommand`, `\renewcommand`, `\newenvironment`, or `\
 ### `display-line-length`
 
 A source line strictly inside `equation`, `equation*`, `multline`, or `multline*` is longer than 80 characters. The `\begin` and `\end` lines do not count.
-
-### `cite-empty`
-
-`\cite`, `\refcite`, or `\refscite` has no key. A missing argument, `\cite{}`, and `\cite{ }` all count. Sentence role, the parenthetical tie, and the plural check do not also fire.
 
 ### `cite-sentence-role`
 
@@ -117,25 +151,17 @@ A normal space before `\cref`, `\Cref`, `\refcite`, or `\refscite` is legal. Tho
 
 Trigger words: `the`, `this`, `that`, `these`, `those`, `a`, `an`, `both`, `either`, `neither`, `another`, `any`, `each`, `every`, `such`, `in`, `of`, `from`, `by`, `with`, `within`, `via`, `per`, `into`, `upon`, `following`, `after`, `before`, `between`, `among`, `against`, `unlike`, `like`, `despite`, `beyond`, `across`, `under`, `over`, `about`, `through`, `during`, `including`, `except`, `versus`, `vs`, `vs.`, `to`, `on`, `for`, `as`, `see`, `compare`, `consult`, `follow`, `follows`, `followed`, `following`, `use`, `uses`, `used`, `using`, `adopt`, `adopts`, `adopted`, `also`, `Ref.`, `Refs.`, and `cf.`.
 
-`Ref.~\cite{key}` and `Refs.~\cite{a,b}` are this same error. The key count chooses `\refcite` or `\refscite`.
+`Ref.~\cite{key}` and `Refs.~\cite{a,b}` are this same warning. The key count chooses `\refcite` or `\refscite`.
 
 Exclusion words: `e.g.`, `i.e.`, `etc.`, and `al.`. These keep a parenthetical `\cite`. `et al.~\cite{key}` stays a citation of the authors. `cf.` is a trigger, not an exclusion.
 
 `word~\cite{key}` is legal when `word` is neither a trigger nor an exclusion. A verb after the citation is not a signal: `model~\cite{key} shows` is parenthetical.
-
-### `cite-plural`
-
-- `\refcite` with a comma-separated argument should be `\refscite`.
-- `\refscite` with a single key should be `\refcite`.
-- `\refcite{a} and \refcite{b}` should be `\refscite{a,b}`.
 
 ### `cite-possessive`
 
 `'s` immediately after `\cite`, `\refcite`, or `\refscite` is a possessive, including `\cite[Sec.~2]{key}'s`. The repair is a rephrase, typically `of \refcite{key}` or `of \refscite{a,b}`. The checker does not suggest `\refcite{key}'s`.
 
 When the possessive is present, `cite-sentence-role` does not also fire. A plural mismatch on the same command still fires, and the rephrase uses the plural macro.
-
-## Warnings
 
 ### `cite-parenthetical-tie`
 
@@ -183,7 +209,7 @@ In text, outside `\num`, a number written `4e7` or `4E-3` should use `\num`. Thi
 
 ### `unit-bare`
 
-A bare unit outside `\qty` should use `\qty`. The scan skips comments, `\verb`, verbatim-like environments, both arguments of `\qty` (and an optional `[...]`), both arguments of `\DeclareSIUnit`, and the key argument of `\cite`, `\refcite`, and `\refscite`. Optional citation notes are still scanned. The same skip applies to `num-power`.
+A bare unit outside `\qty` should use `\qty`. The scan skips comments, `\verb`, verbatim-like environments, the arguments of `\texttt`, `\href`, `\url`, `\documentclass`, and `\usepackage`, both arguments of `\qty` (and an optional `[...]`), both arguments of `\DeclareSIUnit`, and the key argument of `\cite`, `\refcite`, and `\refscite`. Optional citation notes are still scanned. The same skip applies to `num-power`.
 
 The unit list is `nm`, `\mu m` (a space or `\,` may sit between `\mu` and `m`), `mm`, `cm`, `km`, `pc`, `AU`, `eV`, `kg`, `yr`, and `Hz`. Matching is case-sensitive.
 
@@ -236,7 +262,7 @@ Every entry in the named `.bib` files is checked, cited or not. `@string`, `@pre
 
 ## Preamble hints
 
-These are warnings. `define-refcite`, `define-refscite`, `usepackage-booktabs`, and `usepackage-siunitx` sit on the `\documentclass` line, column 1. If the file has no `\documentclass`, they sit on line 1 of the root file.
+`define-refcite` and `define-refscite` are warnings. They sit on the `\documentclass` line, column 1. If the file has no `\documentclass`, they sit on line 1 of the root file.
 
 ### `define-refcite` and `define-refscite`
 
@@ -246,28 +272,6 @@ These are warnings. `define-refcite`, `define-refscite`, `usepackage-booktabs`, 
 \newcommand{\refcite}[1]{Ref.~\cite{#1}}
 \newcommand{\refscite}[1]{Refs.~\cite{#1}}
 ```
-
-### `usepackage-booktabs`
-
-`booktabs` fired, and neither `\usepackage` nor `\RequirePackage` loads `booktabs`. The message asks for `\usepackage{booktabs}`.
-
-### `usepackage-siunitx`
-
-`unit-bare`, `num-power`, or `num-scientific` fired, and `siunitx` is not loaded. One warning even if several of those rules fired. The message asks for `\usepackage{siunitx}`.
-
-Options and combined lists count: `\usepackage[range-units]{siunitx,booktabs}`.
-
-### `declare-si-unit`
-
-`yr`, `pc`, and `AU` are not built into siunitx. When one of those `unit-bare` findings is present and `siunitx` is loaded, this warning sits on the line after the `\usepackage` or `\RequirePackage` that loads it. The message asks for the missing declaration:
-
-```latex
-\DeclareSIUnit{\year}{yr}
-\DeclareSIUnit{\parsec}{pc}
-\DeclareSIUnit{\au}{AU}
-```
-
-A `\DeclareSIUnit` that already names `\year`, `\parsec`, or `\au` suppresses that hint. When `siunitx` itself is missing, `usepackage-siunitx` is the hint instead.
 
 ## Not checked
 

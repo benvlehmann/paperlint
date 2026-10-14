@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from paperlint.tokenize import DISABLE_RE
+from paperlint.tokenize import DISABLE_RE, line_is_style_ok
 
 _AND_RE = re.compile(r"\s+and\s+", re.IGNORECASE)
 
@@ -21,20 +21,22 @@ class BibEntry:
 
 def parse_bibliographies(
     paths: list[Path],
-) -> tuple[list[BibEntry], dict[tuple[Path, int], set[str]]]:
+) -> tuple[list[BibEntry], dict[tuple[Path, int], set[str]], set[tuple[Path, int]]]:
     entries: list[BibEntry] = []
     suppressions: dict[tuple[Path, int], set[str]] = {}
+    exempt_lines: set[tuple[Path, int]] = set()
     seen: set[Path] = set()
     for path in paths:
         resolved = path.resolve()
         if resolved in seen or not resolved.is_file():
             continue
         seen.add(resolved)
-        found, suppressed = _parse_file(resolved)
+        found, suppressed, exempt = _parse_file(resolved)
         entries.extend(found)
+        exempt_lines.update(exempt)
         for key, rules in suppressed.items():
             suppressions.setdefault(key, set()).update(rules)
-    return entries, suppressions
+    return entries, suppressions, exempt_lines
 
 
 def normalize_value(raw: str) -> str:
@@ -309,7 +311,12 @@ class _BibScanner:
 
 def _parse_file(
     path: Path,
-) -> tuple[list[BibEntry], dict[tuple[Path, int], set[str]]]:
+) -> tuple[list[BibEntry], dict[tuple[Path, int], set[str]], set[tuple[Path, int]]]:
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
     scanner = _BibScanner(path, text)
-    return scanner.parse(), scanner.suppressions
+    exempt = {
+        (path, number)
+        for number, line in enumerate(text.splitlines(), start=1)
+        if line_is_style_ok(line)
+    }
+    return scanner.parse(), scanner.suppressions, exempt

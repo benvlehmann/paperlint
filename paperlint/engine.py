@@ -18,7 +18,8 @@ def lint_path(path: Path) -> list[Diagnostic]:
     path = path.resolve()
     config = load_config(path.parent)
     document = load_document(path, config)
-    entries, bib_suppressions = parse_bibliographies(document.bib_paths)
+    entries, bib_suppressions, bib_exempt = parse_bibliographies(document.bib_paths)
+    document.exempt_lines.update(bib_exempt)
     for key, rules in bib_suppressions.items():
         document.suppressions.setdefault(key, set()).update(rules)
     diagnostics: list[Diagnostic] = []
@@ -37,5 +38,6 @@ def lint_path(path: Path) -> list[Diagnostic]:
 def _suppress(document, diagnostics: list[Diagnostic]) -> list[Diagnostic]:
     return [
         item for item in diagnostics
-        if item.rule_id not in document.suppressions.get((item.file, item.line), set())
+        if (item.file, item.line) not in document.exempt_lines
+        and item.rule_id not in document.suppressions.get((item.file, item.line), set())
     ]

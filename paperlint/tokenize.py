@@ -10,6 +10,21 @@ DISABLE_RE = re.compile(
     r"paperlint:\s*disable\s*=\s*([A-Za-z0-9_, \-]+)"
 )
 
+STYLE_OK = "%!style ok"
+
+
+def line_is_style_ok(text: str) -> bool:
+    stripped = text.rstrip(" \t")
+    if not stripped.endswith(STYLE_OK):
+        return False
+    percent = len(stripped) - len(STYLE_OK)
+    escapes = 0
+    index = percent - 1
+    while index >= 0 and stripped[index] == "\\":
+        escapes += 1
+        index -= 1
+    return escapes % 2 == 0
+
 MATH_ENVS = {
     "equation", "equation*",
     "multline", "multline*",
@@ -143,6 +158,8 @@ class _Scanner:
         self.state.document.lines.append(
             LineRec(self.path, number, text, inside)
         )
+        if line_is_style_ok(text):
+            self.state.document.exempt_lines.add((self.path, number))
 
     def next_line_is_blank(self) -> bool:
         j = self.i + 1
@@ -380,6 +397,12 @@ class _Scanner:
         if name == "footnote":
             self._attach_footnote(token)
             return
+        if name in {
+            "texttt", "href", "url",
+            "documentclass", "usepackage", "usepackage*",
+        }:
+            self._attach_literal(token)
+            return
         if name in PROSE_COMMANDS:
             if self.peek_significant() == "{":
                 self.skip_filler()
@@ -392,6 +415,32 @@ class _Scanner:
             return
         if letter:
             self._eat_control_word_space()
+
+    def _attach_literal(self, token: Token) -> None:
+        if token.name in {
+            "href", "documentclass", "usepackage", "usepackage*",
+        } and self.peek_significant() == "[":
+            self.skip_filler()
+            token.optional = (self._read_raw("[", "]"),)
+        if token.name == "url" and self.peek_significant() not in {"", "{", "["}:
+            delim = self.peek()
+            self.advance()
+            while self.peek() not in {"", delim}:
+                self.advance()
+            if self.peek() == delim:
+                self.advance()
+            token.end_offset = self.i
+            return
+        count = 2 if token.name == "href" else 1
+        groups: list[str] = []
+        for _ in range(count):
+            if self.peek_significant() != "{":
+                break
+            self.skip_filler()
+            groups.append(self._read_raw("{", "}"))
+        if groups:
+            token.mandatory = tuple(groups)
+        token.end_offset = self.i
 
     def _attach_cite(self, token: Token) -> None:
         options: list[str] = []

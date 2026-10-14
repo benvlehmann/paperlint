@@ -35,6 +35,7 @@ class Document:
     tokens: list[Token] = field(default_factory=list)
     lines: list[LineRec] = field(default_factory=list)
     suppressions: dict[tuple[Path, int], set[str]] = field(default_factory=dict)
+    exempt_lines: set[tuple[Path, int]] = field(default_factory=set)
     bib_paths: list[Path] = field(default_factory=list)
     sources: dict[Path, str] = field(default_factory=dict)
 

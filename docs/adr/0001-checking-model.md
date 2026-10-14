@@ -43,7 +43,7 @@ Sentence start is the start of a paragraph, or a position after `.`, `!`, or `?`
 
 ### Rule tiers
 
-**Errors** are decided from tokens and the environment stack. **Warnings** are heuristics with an expected false-positive rate; each one is suppressible. A few style-guide statements stay prose: whether a table is “largely mathematical,” whether a blank line was meant as a paragraph break, and whether long equations are “organized,” beyond the 80-column limit below.
+**Errors** fail the run. **Warnings** do not. A few style-guide statements stay prose: whether a table is “largely mathematical,” whether a blank line was meant as a paragraph break, and whether long equations are “organized,” beyond the 80-column limit below.
 
 Build the math-mode tracker and the error rules first, including the citation errors. Add the warning rules for `align`-versus-`multline`, units, and dashes only after that tracker is tested.
 
@@ -52,23 +52,19 @@ Build the math-mode tracker and the error rules first, including the citation er
 | Rule id | Check |
 | --- | --- |
 | `label-key` | A `\label` argument has no spaces and begins with a configured prefix. Default prefixes: `sec:`, `eq:`, `fig:`, `tab:`. The prefix matches the enclosing environment: `sec:` in sectioning commands, `eq:` in `equation`, `multline`, `align`, and `gather` (starred forms included), `fig:` in `figure` and `figure*`, `tab:` in `table` and `table*`. |
-| `no-ref` | `\ref` and `\eqref` are forbidden. Cross-references use `\cref` and `\Cref`. |
 | `cref-sentence-case` | `\cref` at the start of a sentence is `\Cref`. Sentence start is defined above. |
 | `cref-combine` | Adjacent equation references joined by `and`, as in `\cref{eq:a} and \cref{eq:b}`, are one `\cref{eq:a,eq:b}`. |
 | `no-display-delims` | `$$` and `\[...\]` are forbidden. Display math uses the `equation` environment. `equation*` is the unnumbered form. |
 | `no-eqnarray` | `eqnarray` is forbidden. |
-| `figure-placement` | `figure` and `figure*` take no optional argument. |
 | `booktabs` | A tabular or array preamble contains no vertical rule. `\vline`, `\hline`, and `\cline` are forbidden. Horizontal rules are `\toprule`, `\midrule`, and `\bottomrule`. |
 | `legacy-font` | `{\bf ...}`, `{\it ...}`, `{\rm ...}`, `{\color ...}`, and the declarations `\bf`, `\it`, and `\rm`, are forbidden. Replacements are `\textbf`, `\textit`, `\mathrm`, and `\textcolor`. |
 | `mathrm-text` | The argument of `\mathrm` contains a space or a dash. Use `\textnormal`. |
-| `env-own-line` | `\begin{...}` and `\end{...}` each occupy their own line. |
-| `no-env-macro` | The replacement text of `\newcommand`, `\renewcommand`, `\newenvironment`, or `\renewenvironment` contains `\begin` or `\end`. The diagnostic is on the definition. |
-| `no-tilde-math` | `~` appears in math mode. |
-| `display-line-length` | A source line inside `equation`, `equation*`, `multline`, or `multline*` exceeds 80 characters. |
-| `cite-sentence-role` | `\cite` is used as a word in the sentence. See below. |
+| `no-env-macro` | A `\newcommand` or `\renewcommand` contains `\begin` without its matching `\end`, or `\end` without its matching `\begin`. A complete environment in the macro is legal. |
 | `cite-plural` | The singular and plural citation macros disagree with the number of keys. See below. |
-| `cite-possessive` | A possessive is attached to a citation command. See below. |
 | `cite-empty` | `\cite`, `\refcite`, or `\refscite` has no citation key. |
+| `usepackage-booktabs` | Rule `booktabs` fired and `booktabs` is not loaded in the preamble. |
+| `usepackage-siunitx` | A siunitx finding fired and `siunitx` is not loaded in the preamble. |
+| `declare-si-unit` | `yr`, `pc`, or `AU` is used, `siunitx` is loaded, and the matching `\DeclareSIUnit` is missing. |
 
 `array` stays legal. Tables of mathematics use it.
 
@@ -78,13 +74,18 @@ Build the math-mode tracker and the error rules first, including the citation er
 | --- | --- |
 | `align-single` | An `align` contains a single line break and a single relation. Suggest `multline`. |
 | `array-piecewise` | An `array` has a last column that looks like conditions (`\ll`, `\gg`, `\text`, or words). Suggest `cases`. |
+| `no-ref` | `\ref` and `\eqref` are forbidden. Cross-references use `\cref` and `\Cref`. |
+| `figure-placement` | `figure` and `figure*` take no optional argument. |
+| `env-own-line` | `\begin{...}` and `\end{...}` each occupy their own line. A `\begin` line may also end with `\ignorespaces` or a comment. |
+| `no-tilde-math` | `~` appears in math mode. |
+| `display-line-length` | A source line inside `equation`, `equation*`, `multline`, or `multline*` exceeds 80 characters. |
+| `cite-sentence-role` | `\cite` is used as a word in the sentence. See below. |
+| `cite-possessive` | A possessive is attached to a citation command. See below. |
 | `num-scientific` | A bare scientific number such as `4e7` appears outside `\num`, in text. |
 | `unit-bare` | A bare unit (`cm`, `eV`, `M_\odot`, and the list below) appears outside `\qty`. |
 | `num-power` | An integer power `10^x` or `10^{x}` appears outside `\num`. Suggest `\num{yex}`. |
 | `define-refcite` | A finding tells the author to use `\refcite`, and that command is not defined. |
 | `define-refscite` | A finding tells the author to use `\refscite`, and that command is not defined. |
-| `usepackage-booktabs` | Rule `booktabs` fired and `booktabs` is not loaded. |
-| `usepackage-siunitx` | A siunitx finding fired and `siunitx` is not loaded. |
 | `table-mathness` | A `tabular` is almost entirely math, or an `array` is almost entirely words. |
 | `dash-range` | A number–hyphen–number in text, such as `1-10`, should be an en dash. |
 | `dash-spacing` | A space surrounds `--` or `---`. |
@@ -179,20 +180,20 @@ A tie is required only before `\cite`. A bare citation number should not start a
 
 `cite-empty` fires when `\cite`, `\refcite`, or `\refscite` has no key. That includes a missing argument and an empty group such as `\cite{}` or `\cite{ }`. Sentence role, the parenthetical tie, and the plural check do not also fire.
 
-#### Preamble hints
+#### Preamble requirements
 
-These warnings sit on the `\documentclass` line. If the file has no `\documentclass`, they sit on line 1 of the root file.
-
-`define-refcite` and `define-refscite` fire when `cite-sentence-role`, `cite-plural`, or `cite-possessive` tells the author to use that command and the source never defines it. A definition is `\newcommand`, `\renewcommand`, `\providecommand`, or `\DeclareRobustCommand`, with an optional star, or `\def`. The message includes the corresponding line:
+`define-refcite` and `define-refscite` are warnings. They sit on the `\documentclass` line. If the file has no `\documentclass`, they sit on line 1 of the root file. They fire when `cite-sentence-role`, `cite-plural`, or `cite-possessive` tells the author to use that command and the source never defines it. A definition is `\newcommand`, `\renewcommand`, `\providecommand`, or `\DeclareRobustCommand`, with an optional star, or `\def`. The message includes the corresponding line:
 
 ```latex
 \newcommand{\refcite}[1]{Ref.~\cite{#1}}
 \newcommand{\refscite}[1]{Refs.~\cite{#1}}
 ```
 
-`usepackage-booktabs` fires when `booktabs` fired and neither `\usepackage` nor `\RequirePackage` loads `booktabs`. `usepackage-siunitx` fires once when `unit-bare`, `num-power`, or `num-scientific` fired and `siunitx` is not loaded. Options and combined package lists count.
+`usepackage-booktabs`, `usepackage-siunitx`, and `declare-si-unit` are errors. They read the preamble: the root file before `\begin{document}`, every file named by `\input` or `\include` there, and files those pull in. A file with no `\begin{document}` counts in full. A command after `\begin{document}` does not.
 
-`yr`, `pc`, and `AU` are not built into siunitx. When one of those `unit-bare` findings is present and `siunitx` is loaded, `declare-si-unit` fires on the line after the `\usepackage` or `\RequirePackage` that loads it. The message asks for the missing declaration:
+`usepackage-booktabs` fires when `booktabs` fired and neither `\usepackage` nor `\RequirePackage` loads `booktabs` in that preamble. `usepackage-siunitx` fires once when `unit-bare`, `num-power`, or `num-scientific` fired and `siunitx` is not loaded there. Options and combined package lists count. Both sit on the `\documentclass` line.
+
+`yr`, `pc`, and `AU` are not built into siunitx. When one of those `unit-bare` findings is present and `siunitx` is loaded in the preamble, `declare-si-unit` fires on the line after the `\usepackage` or `\RequirePackage` that loads it. The message asks for the missing declaration:
 
 ```latex
 \DeclareSIUnit{\year}{yr}
@@ -200,11 +201,11 @@ These warnings sit on the `\documentclass` line. If the file has no `\documentcl
 \DeclareSIUnit{\au}{AU}
 ```
 
-A declaration already in the source suppresses that hint. When `siunitx` itself is missing, `usepackage-siunitx` is the hint instead.
+A declaration already in that preamble suppresses the error. When `siunitx` itself is missing, `usepackage-siunitx` is the error instead.
 
 #### Bare units and powers of ten
 
-`unit-bare` scans the source, skipping comments, `\verb`, verbatim-like environments, both arguments of `\qty` (including an optional bracket argument), both arguments of `\DeclareSIUnit`, and the citation-key argument of `\cite`, `\refcite`, and `\refscite`. Optional citation notes stay visible. The key text has to match a bibliography entry name, so it is not a style violation. `cite-plural` still compares the number of keys. A unit matches only when the character after it is not a letter or a hyphen, and the character before it is not a hyphen. `eVa` and `kg-yr` are legal. `eV}`, `eV^2`, and `eV2` are not. A letter before the unit still matches, so `GeV` is caught as `eV`, `kpc` as `pc`, and `GHz` as `Hz`. `cm` is exempt when a number immediately precedes it inside a macro argument, as in `\vspace{1cm}`: that is a TeX length. `1cm` in prose, and `1 cm` with a space, still warn. The default list is `nm`, `\mu m` (optional space or `\,`), `mm`, `cm`, `km`, `pc`, `AU`, `eV`, `kg`, `yr`, and `Hz`. `M_\odot` and `M_{\odot}` match even when a letter follows. Single-letter units are not on the list.
+`unit-bare` scans the source, skipping comments, `\verb`, verbatim-like environments, the arguments of `\texttt`, `\href`, `\url`, `\documentclass`, and `\usepackage`, both arguments of `\qty` (including an optional bracket argument), both arguments of `\DeclareSIUnit`, and the citation-key argument of `\cite`, `\refcite`, and `\refscite`. Optional citation notes stay visible. The key text has to match a bibliography entry name, so it is not a style violation. `cite-plural` still compares the number of keys. A unit matches only when the character after it is not a letter or a hyphen, and the character before it is not a hyphen. `eVa` and `kg-yr` are legal. `eV}`, `eV^2`, and `eV2` are not. A letter before the unit still matches, so `GeV` is caught as `eV`, `kpc` as `pc`, and `GHz` as `Hz`. `cm` is exempt when a number immediately precedes it inside a macro argument, as in `\vspace{1cm}`: that is a TeX length. `1cm` in prose, and `1 cm` with a space, still warn. The default list is `nm`, `\mu m` (optional space or `\,`), `mm`, `cm`, `km`, `pc`, `AU`, `eV`, `kg`, `yr`, and `Hz`. `M_\odot` and `M_{\odot}` match even when a letter follows. Single-letter units are not on the list.
 
 `num-power` matches `10^x` and `10^{x}` when `x` is an optional sign and digits, in text or in math. `10^{n}` and `10^{2.5}` do not match. A mantissa written with `\times` or `×` immediately before the power is part of the match: `2\times10^{3}` asks for `\num{2e3}`, `2 \times 10^{-4}` asks for `\num{2e-4}`, and `10^{3}` asks for `\num{e3}`. The argument of `\num`, and both arguments of `\qty`, are skipped. `num-scientific` remains the check for a bare `4e7` in text outside `\num`.
 
@@ -232,7 +233,9 @@ A trailing comment suppresses one rule on that line:
 % paperlint: disable=dash-spacing
 ```
 
-Configuration supplies the label-prefix map, the citation trigger and exclusion lists, the abbreviation list, the unit lexicon, and the comment-line threshold.
+A line that ends with `%!style ok` is exempt from every finding on that line.
+
+Configuration supplies the label-prefix map, the citation trigger and exclusion lists, the abbreviation list, and the comment-line threshold.
 
 ### Outside this model
 

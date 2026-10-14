@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import re
+
 from paperlint.config import Config
 from paperlint.diagnostic import Diagnostic
 from paperlint.document import Document, Token
 from paperlint.rules.common import (
-    ENV_MACRO_RE,
     commands,
     env_base,
     line_is_only_env_command,
@@ -80,7 +81,7 @@ def _refs(document: Document) -> list[Diagnostic]:
     for token in commands(document, {"ref", "eqref"}):
         replacement = r"\cref"
         found.append(_diag(
-            token, "error",
+            token, "warning",
             f"use {replacement} instead of \\{token.name}",
             "no-ref",
         ))
@@ -181,7 +182,7 @@ def _figure_placement(document: Document) -> list[Diagnostic]:
             continue
         if token.mandatory[0] in {"figure", "figure*"} and token.optional:
             found.append(_diag(
-                token, "error",
+                token, "warning",
                 "do not pass a placement argument to figure",
                 "figure-placement",
             ))
@@ -246,7 +247,7 @@ def _env_own_line(document: Document) -> list[Diagnostic]:
         line = document.line_text(token.file, token.line)
         if line and not line_is_only_env_command(line):
             found.append(_diag(
-                token, "error",
+                token, "warning",
                 f"\\{token.name} must occupy its own line",
                 "env-own-line",
             ))
@@ -258,19 +259,34 @@ def _env_macros(document: Document) -> list[Diagnostic]:
     names = {
         "newcommand", "newcommand*",
         "renewcommand", "renewcommand*",
-        "newenvironment", "newenvironment*",
-        "renewenvironment", "renewenvironment*",
     }
     for token in commands(document, names):
         for body in token.mandatory:
-            if ENV_MACRO_RE.search(body):
+            if _unbalanced_environment(body):
                 found.append(_diag(
                     token, "error",
-                    "do not hide \\begin or \\end inside a macro",
+                    "do not hide only the beginning or end of an environment in a macro",
                     "no-env-macro",
                 ))
                 break
     return found
+
+
+def _unbalanced_environment(body: str) -> bool:
+    stack: list[str] = []
+    for match in re.finditer(r"\\(begin|end)(?![A-Za-z])", body):
+        rest = body[match.end():]
+        name_match = re.match(r"\s*\{([^{}]*)\}", rest)
+        if name_match is None:
+            return True
+        name = name_match.group(1).strip()
+        if match.group(1) == "begin":
+            stack.append(name)
+        elif not stack or stack[-1] != name:
+            return True
+        else:
+            stack.pop()
+    return bool(stack)
 
 
 def _tilde_math(document: Document) -> list[Diagnostic]:
@@ -278,7 +294,7 @@ def _tilde_math(document: Document) -> list[Diagnostic]:
     for token in document.tokens:
         if token.kind == "nbsp" and token.mode != "text":
             found.append(_diag(
-                token, "error",
+                token, "warning",
                 "use \\,, \\;, \\quad, \\qquad, or \\hspace in math mode",
                 "no-tilde-math",
             ))
@@ -290,7 +306,7 @@ def _display_line_length(document: Document) -> list[Diagnostic]:
     for rec in document.lines:
         if rec.in_display_limit and len(rec.text) > 80:
             found.append(Diagnostic(
-                rec.file, rec.number, 1, "error",
+                rec.file, rec.number, 1, "warning",
                 "display-math source lines must be at most 80 characters",
                 "display-line-length",
             ))

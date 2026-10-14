@@ -93,6 +93,36 @@ def test_lone_qty_is_not_in_math_mode(tmp_path: Path):
     assert "qty-math" not in _ids(_lint(tmp_path, r"The mass is \qty{1}{kg}." + "\n"))
 
 
+def test_newenvironment_may_contain_begin_and_end(tmp_path: Path):
+    source = (
+        "\\newenvironment{proof}{\\begin{quote}}{\\end{quote}}\n"
+        "\\newcommand{\\wrapped}{\\begin{quote}text\\end{quote}}\n"
+        "\\newcommand{\\beq}{\\begin{equation}}\n"
+    )
+    found = _ids(_lint(tmp_path, source))
+    assert "no-env-macro" in found
+    assert sum(item.rule_id == "no-env-macro" for item in _lint(tmp_path, source)) == 1
+
+
+def test_literal_arguments_are_not_style_checked(tmp_path: Path):
+    sources = (
+        r"\texttt{10 yr and 1-10 and e.g. this}",
+        r"\href{https://example.com/10cm}{see 10 yr}",
+        r"\url{https://example.com/10^{3}}",
+        r"\documentclass[e.g. 10 yr, 1-10]{article}",
+        r"\usepackage[margin=1 cm, 10^{3}]{geometry}",
+        r"\verb|10 yr|",
+        "\\begin{verbatim}\n10 yr\n\\end{verbatim}\n",
+    )
+    for source in sources:
+        found = _ids(_lint(tmp_path, source + "\n"))
+        assert "unit-bare" not in found, source
+        assert "num-power" not in found, source
+        assert "dash-range" not in found, source
+        assert "abbrev-space" not in found, source
+    assert "unit-bare" in _ids(_lint(tmp_path, r"\texttt{ok} 10 yr" + "\n"))
+
+
 def test_empty_citation(tmp_path: Path):
     for source in (r"\cite{}", r"\cite{ }", r"\refcite{}", r"\refscite{}", r"result~\cite{}"):
         found = _ids(_lint(tmp_path, source + "\n"))
@@ -134,7 +164,17 @@ def test_tie_is_required_only_before_cite(tmp_path: Path):
     assert "cite-parenthetical-tie" in _ids(tied)
 
 
-def test_display_line_length_boundary(tmp_path: Path):
+def test_begin_may_end_with_ignorespaces_or_comment(tmp_path: Path):
+    clean = (
+        "\\begin{abstract}\\ignorespaces\n\\end{abstract}\n"
+        "\\begin{abstract}%\n\\end{abstract}\n"
+        "\\begin{figure}[ht]\\ignorespaces % placement\n\\end{figure}\n"
+    )
+    assert "env-own-line" not in _ids(_lint(tmp_path, clean))
+    bad = "\\begin{abstract}\\ignorespaces text\n\\end{abstract}\n"
+    assert "env-own-line" in _ids(_lint(tmp_path, bad))
+    ended = "\\begin{abstract}\n\\end{abstract}\\ignorespaces\n"
+    assert "env-own-line" in _ids(_lint(tmp_path, ended))
     short = "\\begin{equation}\n" + ("x" * 80) + "\n\\end{equation}\n"
     long = "\\begin{equation}\n" + ("x" * 81) + "\n\\end{equation}\n"
     assert "display-line-length" not in _ids(_lint(tmp_path, short))
@@ -145,6 +185,20 @@ def test_suppression_and_exit_status(tmp_path: Path):
     path = tmp_path / "main.tex"
     path.write_text("\\ref{sec:a} % paperlint: disable=no-ref\n", encoding="utf-8")
     assert lint_path(path) == []
+
+
+def test_style_ok_exempts_the_line(tmp_path: Path):
+    source = (
+        "\\ref{sec:a} %!style ok\n"
+        "\\ref{sec:b}\n"
+        "e.g. \\ref{sec:c} %!style ok\n"
+        "\\ref{sec:d}\\%!style ok\n"
+        "\\ref{sec:e} %!style okay\n"
+    )
+    diagnostics = _lint(tmp_path, source)
+    lines = {item.line for item in diagnostics if item.rule_id == "no-ref"}
+    assert lines == {2, 4, 5}
+    assert "abbrev-space" not in _ids(diagnostics)
 
 
 def test_warning_only_file_has_no_errors(tmp_path: Path):
@@ -235,12 +289,14 @@ def test_preamble_hints(tmp_path: Path):
     siunitx = _lint(tmp_path, units)
     assert "usepackage-siunitx" in _ids(siunitx)
     assert sum(item.rule_id == "usepackage-siunitx" for item in siunitx) == 1
+    assert next(item for item in siunitx if item.rule_id == "usepackage-siunitx").severity == "error"
     with_pkg = "\\documentclass{article}\n\\usepackage[range-units]{siunitx,booktabs}\n10 cm\n"
     assert "usepackage-siunitx" not in _ids(_lint(tmp_path, with_pkg))
     year = "\\documentclass{article}\n\\usepackage{siunitx}\nThe age is 10 yr.\n"
     declared = _lint(tmp_path, year)
     hint = next(item for item in declared if item.rule_id == "declare-si-unit")
     assert hint.line == 3
+    assert hint.severity == "error"
     assert r"\DeclareSIUnit{\year}{yr}" in hint.message
     assert "usepackage-siunitx" not in _ids(declared)
     bare_year = "\\documentclass{article}\nThe age is 10 yr.\n"
@@ -262,6 +318,43 @@ def test_preamble_hints(tmp_path: Path):
         "\\DeclareSIUnit{\\parsec}{pc}\n"
     )
     assert "unit-bare" not in _ids(_lint(tmp_path, only_decl))
+
+
+def test_preamble_includes_supply_packages(tmp_path: Path):
+    (tmp_path / "setup.tex").write_text(
+        "\\usepackage{booktabs}\n"
+        "\\usepackage{siunitx}\n"
+        "\\DeclareSIUnit{\\year}{yr}\n",
+        encoding="utf-8",
+    )
+    body = (
+        "\\begin{document}\n"
+        "\\begin{tabular}{l|c}\n\\end{tabular}\n"
+        "The age is 10 yr.\n"
+    )
+    for command in ("\\include{setup}\n", "\\input{setup}\n"):
+        source = "\\documentclass{article}\n" + command + body
+        found = _ids(_lint(tmp_path, source))
+        assert "usepackage-booktabs" not in found, command
+        assert "usepackage-siunitx" not in found, command
+        assert "declare-si-unit" not in found, command
+    late = (
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\input{setup}\n"
+        "10 cm\n"
+    )
+    late_ids = _ids(_lint(tmp_path, late))
+    assert "usepackage-siunitx" in late_ids
+    assert "declare-si-unit" not in late_ids
+
+
+def test_demoted_rules_are_warnings(tmp_path: Path):
+    source = "\\ref{sec:a}\nsee \\cite{key}\n\\cite{other}'s\n\\begin{figure}[ht]\n\\end{figure}\n"
+    diagnostics = _lint(tmp_path, source)
+    for rule in ("no-ref", "cite-sentence-role", "cite-possessive", "figure-placement"):
+        item = next(entry for entry in diagnostics if entry.rule_id == rule)
+        assert item.severity == "warning", rule
 
 
 def test_bibliography_rules(tmp_path: Path):
@@ -323,6 +416,15 @@ def test_author_others_is_not_counted(tmp_path: Path):
     )
     diagnostics = _lint(tmp_path, "\\bibliography{refs}\n")
     assert "bib-too-many-authors" not in _ids(diagnostics)
+
+
+def test_style_ok_exempts_a_bibliography_line(tmp_path: Path):
+    (tmp_path / "refs.bib").write_text(
+        "@article{A,\n  file = {:ignored.pdf:PDF} %!style ok\n}\n",
+        encoding="utf-8",
+    )
+    diagnostics = _lint(tmp_path, "\\bibliography{refs}\n")
+    assert "bib-file-field" not in _ids(diagnostics)
 
 
 def test_crossref_fields_are_not_inherited(tmp_path: Path):

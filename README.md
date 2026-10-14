@@ -47,6 +47,8 @@ Suppress one rule on one line with a trailing comment:
 \ref{sec:old} % paperlint: disable=no-ref
 ```
 
+A line that ends with `%!style ok` is exempt from every finding on that line.
+
 ## Editor
 
 The extension in [`editors/vscode`](editors/vscode) runs paperlint on save and shows findings in the Problems list. It works in VS Code and Cursor.

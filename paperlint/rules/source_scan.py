@@ -132,6 +132,11 @@ def _mask(text: str) -> tuple[str, list[tuple[int, int]]]:
             blank(index, end)
             index = end
             continue
+        literal = _literal_command(text, index)
+        if literal is not None:
+            blank(index, literal)
+            index = literal
+            continue
         cite = _cite_command(text, index)
         if cite is not None:
             _blank_cite_keys(text, index, blank)
@@ -212,6 +217,35 @@ def _skip_qty(text: str, index: int) -> int:
             break
         cursor = _skip_group(text, cursor, "{", "}")
     return cursor
+
+
+def _literal_command(text: str, index: int) -> int | None:
+    for name, groups in (
+        ("texttt", 1), ("href", 2), ("url", 1),
+        ("documentclass", 1), ("usepackage", 1),
+    ):
+        if not text.startswith("\\" + name, index) or _command_continues(text, index, name):
+            continue
+        cursor = _skip_control(text, index)
+        if name in {"href", "documentclass", "usepackage"}:
+            nxt = _skip_space(text, cursor)
+            if nxt < len(text) and text[nxt] == "[":
+                cursor = _skip_group(text, nxt, "[", "]")
+        if name == "url":
+            nxt = _skip_space(text, cursor)
+            if nxt < len(text) and text[nxt] not in "{[":
+                delim = text[nxt]
+                cursor = nxt + 1
+                while cursor < len(text) and text[cursor] != delim:
+                    cursor += 1
+                return cursor + 1 if cursor < len(text) else cursor
+        for _ in range(groups):
+            nxt = _skip_space(text, cursor)
+            if nxt >= len(text) or text[nxt] != "{":
+                break
+            cursor = _skip_group(text, nxt, "{", "}")
+        return cursor
+    return None
 
 
 def _cite_command(text: str, index: int) -> int | None:

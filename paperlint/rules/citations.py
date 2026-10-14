@@ -98,7 +98,7 @@ def _cite_role(
             message = f'citation is the object of "{nearest}"; use {macro}'
         else:
             message = f"citation is used as a word in the sentence; use {macro}"
-        return [_diag(token, message, "cite-sentence-role")]
+        return [_diag(token, message, "cite-sentence-role", severity="warning")]
     return []
 
 
@@ -109,6 +109,7 @@ def _possessive(token: Token, keys: list[str]) -> Diagnostic:
         token,
         f"rephrase the possessive, typically “of {macro}{{{rendered}}}”",
         "cite-possessive",
+        severity="warning",
     )
 
 

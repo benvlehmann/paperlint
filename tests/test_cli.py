@@ -7,7 +7,7 @@ def test_usage():
 
 def test_error_exits_nonzero(tmp_path):
     path = tmp_path / "main.tex"
-    path.write_text("\\ref{sec:a}\n", encoding="utf-8")
+    path.write_text("$$x$$\n", encoding="utf-8")
     assert main([str(path)]) == 1
 
 

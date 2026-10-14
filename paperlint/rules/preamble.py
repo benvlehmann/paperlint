@@ -6,6 +6,7 @@ from pathlib import Path
 from paperlint.diagnostic import Diagnostic
 from paperlint.document import Document
 from paperlint.rules.common import strip_comment
+from paperlint.tokenize import _resolve_tex
 
 _DEFINE_REF = {
     "refcite": r"\newcommand{\refcite}[1]{Ref.~\cite{#1}}",
@@ -22,12 +23,17 @@ _CUSTOM_SI_COMMANDS = {"yr": "year", "pc": "parsec", "AU": "au"}
 _PACKAGE_RE = re.compile(
     r"\\(?:usepackage|RequirePackage)\*?\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}"
 )
+_INCLUDE_RE = re.compile(
+    r"\\(?:input|include)(?![A-Za-z])\s*(?:\{([^{}]+)\}|([^\s]+))"
+)
+_BEGIN_DOCUMENT_RE = re.compile(r"\\begin\s*\{\s*document\s*\}")
 
 
 def check_preamble(document: Document, diagnostics: list[Diagnostic]) -> list[Diagnostic]:
     text = _uncommented(document)
+    preamble = _preamble_text(document)
     defined = _defined_commands(text)
-    packages = _loaded_packages(text)
+    packages = _loaded_packages(preamble)
     file, line = _anchor(document)
     found: list[Diagnostic] = []
     for name in ("refscite", "refcite"):
@@ -39,12 +45,18 @@ def check_preamble(document: Document, diagnostics: list[Diagnostic]) -> list[Di
             f"define-{name}",
         ))
     if any(item.rule_id == "booktabs" for item in diagnostics) and "booktabs" not in packages:
-        found.append(_hint(file, line, r"add \usepackage{booktabs} to the preamble", "usepackage-booktabs"))
+        found.append(_hint(
+            file, line, r"add \usepackage{booktabs} to the preamble",
+            "usepackage-booktabs", severity="error",
+        ))
     needs_siunitx = any(item.rule_id in _SIUNITX_RULES for item in diagnostics)
     if needs_siunitx and "siunitx" not in packages:
-        found.append(_hint(file, line, r"add \usepackage{siunitx} to the preamble", "usepackage-siunitx"))
+        found.append(_hint(
+            file, line, r"add \usepackage{siunitx} to the preamble",
+            "usepackage-siunitx", severity="error",
+        ))
     elif "siunitx" in packages:
-        found.extend(_declare_si_units(document, text, diagnostics))
+        found.extend(_declare_si_units(document, preamble, diagnostics))
     return found
 
 
@@ -68,6 +80,7 @@ def _declare_si_units(document: Document, text: str, diagnostics: list[Diagnosti
             file, line,
             f"add {_CUSTOM_SI_UNITS[unit]} to the preamble",
             "declare-si-unit",
+            severity="error",
         ))
     return found
 
@@ -82,7 +95,7 @@ def _si_unit_declared(text: str, command: str) -> bool:
 
 
 def _siunitx_line(document: Document) -> tuple[Path, int] | None:
-    for file, source in document.sources.items():
+    for file, source in _preamble_parts(document):
         for number, line in enumerate(source.splitlines(), start=1):
             match = _PACKAGE_RE.search(strip_comment(line))
             if match is None:
@@ -127,14 +140,67 @@ def _loaded_packages(text: str) -> set[str]:
     return names
 
 
+def _preamble_text(document: Document) -> str:
+    parts = [_uncomment_text(text) for _, text in _preamble_parts(document)]
+    return "\n".join(parts)
+
+
+def _preamble_parts(document: Document) -> list[tuple[Path, str]]:
+    if not document.sources:
+        return []
+    root = next(iter(document.sources))
+    found: list[tuple[Path, str]] = []
+    seen: set[Path] = set()
+
+    def visit(path: Path, text: str) -> None:
+        if path in seen:
+            return
+        seen.add(path)
+        region = _before_document(text)
+        found.append((path, region))
+        for name in _included_names(region):
+            child = _resolve_tex(path.parent, name)
+            if child is None:
+                continue
+            child_text = document.sources.get(child)
+            if child_text is None:
+                continue
+            visit(child, child_text)
+
+    visit(root, document.sources[root])
+    return found
+
+
+def _before_document(text: str) -> str:
+    kept: list[str] = []
+    for line in text.splitlines(keepends=True):
+        body = line[:-1] if line.endswith("\n") else line
+        if _BEGIN_DOCUMENT_RE.search(strip_comment(body)):
+            break
+        kept.append(line if line.endswith("\n") else line + "\n")
+    return "".join(kept)
+
+
+def _included_names(text: str) -> list[str]:
+    names: list[str] = []
+    for line in text.splitlines():
+        for match in _INCLUDE_RE.finditer(strip_comment(line)):
+            name = (match.group(1) or match.group(2) or "").strip()
+            if name:
+                names.append(name)
+    return names
+
+
+def _uncomment_text(text: str) -> str:
+    lines = []
+    for line in text.splitlines(keepends=True):
+        newline = "\n" if line.endswith("\n") else ""
+        lines.append(strip_comment(line.removesuffix("\n")) + newline)
+    return "".join(lines)
+
+
 def _uncommented(document: Document) -> str:
-    parts: list[str] = []
-    for text in document.sources.values():
-        lines = []
-        for line in text.splitlines(keepends=True):
-            newline = "\n" if line.endswith("\n") else ""
-            lines.append(strip_comment(line.removesuffix("\n")) + newline)
-        parts.append("".join(lines))
+    parts = [_uncomment_text(text) for text in document.sources.values()]
     return "\n".join(parts)
 
 
@@ -147,5 +213,7 @@ def _anchor(document: Document) -> tuple[Path, int]:
     return Path("main.tex"), 1
 
 
-def _hint(file: Path, line: int, message: str, rule_id: str) -> Diagnostic:
-    return Diagnostic(file, line, 1, "warning", message, rule_id)
+def _hint(
+    file: Path, line: int, message: str, rule_id: str, severity: str = "warning",
+) -> Diagnostic:
+    return Diagnostic(file, line, 1, severity, message, rule_id)
